@@ -56,12 +56,8 @@ killService originalSocket = do
 helo :: Handle -> SockAddr -> String -> String -> IO ()
 helo hdl addr text port = do
     putStrLn $ "Responding to HELO command with params : " ++ text
-    hPutStrLn hdl $ "HELO " ++ text
-    hPutStrLn hdl $ "IP:"   ++ (head $ splitOn ":" $ show addr)
-    hPutStrLn hdl $ "Port:" ++ port
-    hPutStrLn hdl $ "StudentID:16336620"
+    hPutStrLn hdl $ "HELO " ++ text ++ "\\nIP:"   ++ (head $ splitOn ":" $ show addr) ++ "\\nPort:" ++ port ++ "\\nStudentID:16336620"
 
 otherCommand :: Handle -> String -> IO ()
 otherCommand hdl param = do
-    hPutStrLn hdl $ "Command not implemented yet : " ++ param
-    hPutStrLn hdl $ "Stay tuned !"
+    hPutStrLn hdl $ "Command not implemented yet : " ++ param ++ "\\nStay tuned !"

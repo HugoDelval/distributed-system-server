@@ -1,14 +1,15 @@
 module Main where
 
 import Network.Socket
+import Network.BSD
 import System.IO
 import System.Environment
-import Control.Concurrent
+import System.Directory
 import Control.Concurrent.ParallelIO.Local
 import Control.Exception
-import Control.Monad (liftM)
 import Control.Monad.Fix (fix)
 import Data.List
+import Data.IP
 import Data.List.Split
 
 main :: IO ()
@@ -17,7 +18,7 @@ main = do
     sock <- socket AF_INET Stream 0                            -- create socket
     setSocketOption sock ReuseAddr 1                           -- make socket immediately reusable.
     bind sock (SockAddrInet (toEnum $ read port) iNADDR_ANY)   -- listen on TCP port given by user.
-    let nbThreads = 2
+    let nbThreads = 5
     listen sock (nbThreads*2)                                  -- queue of 10 connections max
     withPool nbThreads $ 
         \pool -> parallel_ pool (replicate nbThreads (mainLoop sock port))
@@ -48,6 +49,20 @@ runConn (sock, addr) originalSocket port = do
     
     hClose hdl
 
+sendResponse :: Handle -> String -> IO ()
+sendResponse hdl resp = do
+    hSetBuffering hdl $ BlockBuffering $ Just (length resp)
+    hPutStrLn hdl resp
+
+getHostNameIfDockerOrNot :: IO String
+getHostNameIfDockerOrNot = do
+    weAreInDocker <- doesFileExist "/.dockerenv"
+    host <- if weAreInDocker 
+    	then getHostByName "dockerhost" 
+    	else (getHostName >>= getHostByName)
+    putStrLn $ show $ hostName host
+    return $ show $ fromHostAddress $ head $ hostAddresses host
+
 killService :: Socket -> IO ()
 killService originalSocket = do
     putStrLn "Killing Service..."
@@ -56,8 +71,11 @@ killService originalSocket = do
 helo :: Handle -> SockAddr -> String -> String -> IO ()
 helo hdl addr text port = do
     putStrLn $ "Responding to HELO command with params : " ++ text
-    hPutStrLn hdl $ "HELO " ++ text ++ "\\nIP:"   ++ (head $ splitOn ":" $ show addr) ++ "\\nPort:" ++ port ++ "\\nStudentID:16336620"
+    hostname <- getHostNameIfDockerOrNot
+    let resp = "HELO " ++ text ++ "\nIP:" ++ hostname ++ "\nPort:" ++ port ++ "\nStudentID:16336620"
+    putStrLn $ resp
+    sendResponse hdl $ resp
 
 otherCommand :: Handle -> String -> IO ()
 otherCommand hdl param = do
-    hPutStrLn hdl $ "Command not implemented yet : " ++ param ++ "\\nStay tuned !"
+    sendResponse hdl $ "Command not implemented yet : " ++ param ++ "\nStay tuned !"

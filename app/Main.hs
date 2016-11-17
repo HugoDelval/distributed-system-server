@@ -5,9 +5,10 @@ import Network.BSD
 import System.IO
 import System.Environment
 import System.Directory
-import Control.Concurrent.ParallelIO.Local
 import Control.Exception
 import Control.Monad.Fix (fix)
+import Control.Concurrent.ParallelIO.Local
+import Control.Concurrent
 import Control.Concurrent.Chan
 import Data.List
 import Data.IP
@@ -54,10 +55,12 @@ runConn (sock, addr) originalSocket port chan = do
         let args = intercalate " " $ tail commandAndArgs 
         case command of
             "KILL_SERVICE" -> do
-                killService originalSocket
                 writeChan chan True
+                threadDelay 500000 -- 500ms
+                killService originalSocket
             "HELO"         -> helo hdl addr args port >> loop
-            _              -> otherCommand hdl line   >> loop
+            _              -> otherCommand hdl line
+    shutdown sock ShutdownBoth 
     hClose hdl
 
 waitForInput :: Handle -> Chan Bool -> IO (Bool, String)
@@ -82,7 +85,7 @@ waitForInput hdl chan = do
 sendResponse :: Handle -> String -> IO ()
 sendResponse hdl resp = do
     hSetBuffering hdl $ BlockBuffering $ Just (length resp)
-    hPutStrLn hdl resp
+    hPutStr hdl resp
 
 getHostNameIfDockerOrNot :: IO String
 getHostNameIfDockerOrNot = do
@@ -95,6 +98,7 @@ getHostNameIfDockerOrNot = do
 killService :: Socket -> IO ()
 killService originalSocket = do
     putStrLn "Killing Service..."
+    shutdown originalSocket ShutdownBoth
     close originalSocket
 
 helo :: Handle -> SockAddr -> String -> String -> IO ()
@@ -106,4 +110,4 @@ helo hdl addr text port = do
 otherCommand :: Handle -> String -> IO ()
 otherCommand hdl param = do
     putStrLn $ "Received unknown query : " ++ param
-    sendResponse hdl $ "Command not implemented yet : " ++ param ++ "\nStay tuned !"
+    -- sendResponse hdl $ "Command not implemented yet : " ++ param ++ "\nStay tuned !"
